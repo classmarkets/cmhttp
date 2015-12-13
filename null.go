@@ -8,8 +8,8 @@ func Null() Decorator {
 	return func(c Client) Client {
 		return ClientFunc(func(*http.Request) (*http.Response, error) {
 			return &http.Response{
-				Status:        "204 No Content",
-				StatusCode:    204,
+				Status:        http.StatusText(http.StatusNoContent),
+				StatusCode:    http.StatusNoContent,
 				Proto:         "HTTP/1.1",
 				ProtoMajor:    1,
 				ProtoMinor:    1,

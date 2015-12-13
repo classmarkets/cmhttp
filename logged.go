@@ -5,6 +5,9 @@ import (
 	"time"
 )
 
+// Logged is used to execute a log function after the request has been made.
+// Neither the request body nor the response body will be logged.
+// If the client returned an error it will be logged as well.
 func Logged(logf func(string, ...interface{}), trigger func() bool) Decorator {
 	if trigger == nil {
 		trigger = func() bool { return true }

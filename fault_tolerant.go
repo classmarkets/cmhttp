@@ -11,7 +11,7 @@ import (
 func FaultTolerant(attempts int, backoff time.Duration) Decorator {
 	return func(c Client) Client {
 		return ClientFunc(func(r *http.Request) (res *http.Response, err error) {
-			for i := 1; i <= attempts; i += 1 {
+			for i := 1; i <= attempts; i++ {
 				if res, err = c.Do(r); err == nil {
 					break
 				}

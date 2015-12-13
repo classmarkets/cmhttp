@@ -23,7 +23,7 @@ func TestNull(t *testing.T) {
 		t.Error(err)
 	}
 
-	if r.StatusCode != 204 {
+	if r.StatusCode != http.StatusNoContent {
 		t.Errorf("Unexpected response status %d", r.StatusCode)
 	}
 }

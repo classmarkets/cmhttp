@@ -8,22 +8,26 @@ import (
 	"testing"
 )
 
-func TestRequestHeaders(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Content-Type") != "application/json" {
-			w.WriteHeader(400)
-			fmt.Fprintf(w, "Expected Content-Type %q, got %q", "application/json", r.Header.Get("Content-Type"))
+func testServer(contentType, accept string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Content-Type") != contentType {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(w, "Expected Content-Type %q, got %q", contentType, r.Header.Get("Content-Type"))
 			return
 		}
 
-		if r.Header.Get("Accept") != "application/json" {
-			w.WriteHeader(400)
-			fmt.Fprintf(w, "Expected Accept %q, got %q", "application/json", r.Header.Get("Accept"))
+		if r.Header.Get("Accept") != accept {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(w, "Expected Accept %q, got %q", accept, r.Header.Get("Accept"))
 			return
 		}
 
 		w.WriteHeader(615)
 	}))
+}
+
+func TestRequestHeaders(t *testing.T) {
+	server := testServer("application/json", "application/json")
 	defer server.Close()
 
 	client := Typed("application/json")(http.DefaultClient)
@@ -45,21 +49,7 @@ func TestRequestHeaders(t *testing.T) {
 }
 
 func TestRequestHeadersOverride(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Content-Type") != "image/jpeg" {
-			w.WriteHeader(400)
-			fmt.Fprintf(w, "Expected Content-Type %q, got %q", "image/jpeg", r.Header.Get("Content-Type"))
-			return
-		}
-
-		if r.Header.Get("Accept") != "image/png" {
-			w.WriteHeader(400)
-			fmt.Fprintf(w, "Expected Accept %q, got %q", "image/png", r.Header.Get("Accept"))
-			return
-		}
-
-		w.WriteHeader(615)
-	}))
+	server := testServer("image/jpeg", "image/png")
 	defer server.Close()
 
 	client := JSON()(http.DefaultClient)
