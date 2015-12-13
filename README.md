@@ -1,60 +1,69 @@
 # Composable HTTP client decorators
 
+### Simple Usage
 
-## USAGE
+```golang
+client := cmhttp.Decorate(
+    http.DefaultClient,
+    cmhttp.TokenAuthenticated("my little secret"),
+    cmhttp.Scoped("https://api.example.com"),
+    cmhttp.Typed("application/json"), // or cmhttp.JSON()
+)
 
-    baseClient := &http.Client{
-        Transport: &http.Transport{},
-    }
-    cmhttp.MustConfigureTLS(baseClient.Transport.(*http.Transport), "/etc/ssl/cabundle.pem")
+req, err := http.NewRequest("GET", "/v1/places/de.berlin", nil)
+if err != nil {
+    panic(err)
+}
 
-    client := cmhttp.Decorate(
-        baseClient,
-        cmhttp.TokenAuthenticated("my little secret"),
-        cmhttp.Scoped("https://api.classmarkets.com"),
-        cmhttp.Typed("application/json"), // or cmhttp.JSON()
-    )
+resp, err := client.Do(req)
+```
 
-    req, err := http.NewRequest("GET", "geo/v1/area/de.berlin", nil)
-    if err != nil {
-        panic(err)
-    }
+### Configuring TLS
 
-    resp, err := client.Do(req)
+```golang
+baseClient := &http.Client{
+    Transport: &http.Transport{},
+}
+cmhttp.MustConfigureTLS(baseClient.Transport.(*http.Transport), "/etc/ssl/cabundle.pem")
 
-Implementing custom decorators:
+client := cmhttp.Decorate(
+    baseClient,
+    cmhttp.Scoped("https://api.example.com"),
+    cmhttp.Typed("application/json"), // or cmhttp.JSON()
+)
+```
 
-    import (
-        "log"
-        "net/http"
-        "os"
-        "time"
-    )
+### Implementing custom decorators:
 
-    func Logged(log *log.Logger) Decorator {
-        return func(c Client) Client {
-            return ClientFunc(func(r *http.Request) (*http.Response, error) {
-                var (
-                    resp *http.Response
-                    err error
+```golang
+import (
+    "log"
+    "net/http"
+    "os"
+    "time"
+)
+
+func Logged(log *log.Logger) Decorator {
+    return func(c Client) Client {
+        return ClientFunc(func(r *http.Request) (*http.Response, error) {
+            var (
+                resp *http.Response
+                err error
+            )
+
+            defer func(begin time.Time) {
+                log.Printf(
+                    "method=%s url=%s resp=%d err=%s took=%dms",
+                    r.Method, r.URL, resp.StatusCode, err, time.Since(begin)/1e6,
                 )
+            }(time.Now())
 
-                defer func(begin time.Time) {
-                    log.Printf(
-                        "method=%s url=%s resp=%d err=%s took=%dms",
-                        r.Method,
-                        r.URL,
-                        resp.StatusCode,
-                        err,
-                        time.Since(begin)/1e6,
-                    )
-                }(time.Now())
-
-                resp, err = c.Do(r)
-                return resp, err
-            })
-        }   
-    }
+            resp, err = c.Do(r)
+            return resp, err
+        })
+    }   
+}
+```
 
 Use it:
 
