@@ -5,7 +5,6 @@
 ```golang
 client := cmhttp.Decorate(
     http.DefaultClient,
-    cmhttp.TokenAuthenticated("my little secret"),
     cmhttp.Scoped("https://api.example.com"),
     cmhttp.Typed("application/json"), // or cmhttp.JSON()
 )

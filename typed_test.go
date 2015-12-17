@@ -22,7 +22,7 @@ func testServer(contentType, accept string) *httptest.Server {
 			return
 		}
 
-		w.WriteHeader(615)
+		w.WriteHeader(http.StatusAccepted)
 	}))
 }
 
@@ -42,7 +42,7 @@ func TestRequestHeaders(t *testing.T) {
 		t.Error(err)
 	}
 
-	if r.StatusCode != 615 {
+	if r.StatusCode != http.StatusAccepted {
 		s, _ := ioutil.ReadAll(r.Body)
 		t.Errorf("Unexpected response status %d: %s", r.StatusCode, s)
 	}
@@ -66,7 +66,7 @@ func TestRequestHeadersOverride(t *testing.T) {
 		t.Error(err)
 	}
 
-	if r.StatusCode != 615 {
+	if r.StatusCode != http.StatusAccepted {
 		s, _ := ioutil.ReadAll(r.Body)
 		t.Errorf("Unexpected response status %d: %s", r.StatusCode, s)
 	}

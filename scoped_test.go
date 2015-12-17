@@ -9,9 +9,9 @@ import (
 func TestRelativeURL(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.String() == "/test" {
-			w.WriteHeader(615)
+			w.WriteHeader(http.StatusAccepted)
 		} else {
-			w.WriteHeader(404)
+			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
 	defer server.Close()
@@ -27,7 +27,7 @@ func TestRelativeURL(t *testing.T) {
 		t.Error(err)
 	}
 
-	if r.StatusCode != 615 {
+	if r.StatusCode != http.StatusAccepted {
 		t.Errorf("Did not reach test server")
 	}
 }
@@ -37,16 +37,16 @@ func TestAbsoluteURL(t *testing.T) {
 		if r.URL.String() == "/test1" {
 			w.WriteHeader(614)
 		} else {
-			w.WriteHeader(404)
+			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
 	defer server1.Close()
 
 	server2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.String() == "/test2" {
-			w.WriteHeader(615)
+			w.WriteHeader(http.StatusAccepted)
 		} else {
-			w.WriteHeader(404)
+			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
 	defer server2.Close()
@@ -62,7 +62,7 @@ func TestAbsoluteURL(t *testing.T) {
 		t.Error(err)
 	}
 
-	if r.StatusCode != 615 {
+	if r.StatusCode != http.StatusAccepted {
 		t.Errorf("Did not reach correct test server")
 	}
 }
