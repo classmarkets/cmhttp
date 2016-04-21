@@ -43,7 +43,7 @@ func InstrumentedWithOpts(opts prometheus.SummaryOpts) Decorator {
 	)
 
 	opts.Name = "request_duration_microseconds"
-	opts.Help = "The HTTP request latencies in microseconds."
+	opts.Help = "The HTTP request duration in microseconds."
 	reqDur := prometheus.NewSummary(opts)
 
 	opts.Name = "request_size_bytes"
