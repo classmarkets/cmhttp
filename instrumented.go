@@ -2,10 +2,11 @@ package cmhttp
 
 import (
 	"net/http"
-	"time"
-	"github.com/prometheus/client_golang/prometheus"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // Instrumented registers and collects four prometheus metrics on the decorated HTTP client.
@@ -68,18 +69,18 @@ func InstrumentedWithOpts(opts prometheus.SummaryOpts) Decorator {
 			}
 
 			elapsed := float64(time.Since(begin)) / float64(time.Microsecond)
+			go func() {
+				requestSize := computeApproximateRequestSize(r)
+				method := sanitizeMethod(r.Method)
+				code := sanitizeCode(resp.StatusCode)
+				respLengthHeader := resp.Header.Get("Content-Length")
+				respLength, _ := strconv.Atoi(respLengthHeader) // we can't do anything in case this is not an integer so we ignore this case
 
-			out := make(chan int)
-			go computeApproximateRequestSize(r, out)
-			method := sanitizeMethod(r.Method)
-			code := sanitizeCode(resp.StatusCode)
-			respLengthHeader := resp.Header.Get("Content-Length")
-			respLength, _ := strconv.Atoi(respLengthHeader) // we can't do anything in case this is not an integer so we ignore this case
-
-			regReqCnt.WithLabelValues(method, code).Inc()
-			regReqDur.Observe(elapsed)
-			regResSz.Observe(float64(respLength))
-			regReqSz.Observe(float64(<-out))
+				regReqCnt.WithLabelValues(method, code).Inc()
+				regReqDur.Observe(elapsed)
+				regResSz.Observe(float64(respLength))
+				regReqSz.Observe(float64(requestSize))
+			}()
 
 			return resp, err
 		})
@@ -87,7 +88,7 @@ func InstrumentedWithOpts(opts prometheus.SummaryOpts) Decorator {
 }
 
 // computeApproximateRequestSize has been mostly copied from the prometheus.InstrumentHandler logic.
-func computeApproximateRequestSize(r *http.Request, out chan int) {
+func computeApproximateRequestSize(r *http.Request) int {
 	var s int
 	if r.URL != nil {
 		s = len(r.URL.String())
@@ -108,7 +109,8 @@ func computeApproximateRequestSize(r *http.Request, out chan int) {
 	if r.ContentLength != -1 {
 		s += int(r.ContentLength)
 	}
-	out <- s
+
+	return s
 }
 
 // sanitizeMethod normalizes HTTP methods to lowercase.
