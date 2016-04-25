@@ -240,3 +240,32 @@ func sanitizeCode(s int) string {
 		return strconv.Itoa(s)
 	}
 }
+
+// InstrumentedRequestDurations instruments the client by tracking the request
+// durations as histogram vector partitioned by HTTP method (label name "method")
+// and response code (label name "code").
+func InstrumentedRequestDurations(opts prometheus.HistogramOpts) Decorator {
+	opts.Name = "request_duration_microseconds"
+	opts.Help = "The HTTP request duration in microseconds."
+
+	h := prometheus.NewHistogramVec(opts, []string{"method", "code"})
+	durations := prometheus.MustRegisterOrGet(h).(prometheus.HistogramVec)
+
+	return func(c Client) Client {
+		return ClientFunc(func(r *http.Request) (*http.Response, error) {
+			begin := time.Now()
+			resp, err := c.Do(r)
+			if err != nil {
+				return resp, err
+			}
+
+			elapsed := float64(time.Since(begin)) / float64(time.Microsecond)
+
+			method := sanitizeMethod(r.Method)
+			code := sanitizeCode(resp.StatusCode)
+			durations.WithLabelValues(method, code).Observe(elapsed)
+
+			return resp, err
+		})
+	}
+}
