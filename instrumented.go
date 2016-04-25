@@ -249,7 +249,7 @@ func InstrumentedRequestDurations(opts prometheus.HistogramOpts) Decorator {
 	opts.Help = "The HTTP request duration in microseconds."
 
 	h := prometheus.NewHistogramVec(opts, []string{"method", "code"})
-	durations := prometheus.MustRegisterOrGet(h).(prometheus.HistogramVec)
+	durations := prometheus.MustRegisterOrGet(h).(*prometheus.HistogramVec)
 
 	return func(c Client) Client {
 		return ClientFunc(func(r *http.Request) (*http.Response, error) {
