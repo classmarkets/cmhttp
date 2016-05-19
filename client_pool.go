@@ -1,9 +1,11 @@
 package cmhttp
 
 import (
+	"fmt"
 	"net/http"
-	"time"
+	"net/url"
 	"sync"
+	"time"
 
 	"github.com/bitly/go-hostpool"
 )
@@ -11,12 +13,32 @@ import (
 // ClientPool creates a pool of HTTP clients that use an ε-greedy strategy to distribute
 // HTTP requests among multiple hosts. The pool transparently distributes the requests
 // among the hosts taking the individual request durations and failures into account.
+//
+// The first parameter must be a list of absolute URLs that correspond to the hosts
+// that should receive the client requests. If any of the given URLs is not valid or
+// relative ClientPool will panic immediately instead of when the returned decorator
+// is actually used.
+//
 // A more detailed discussion of the underlying algorithm can be found at
 // https://godoc.org/github.com/bitly/go-hostpool#NewEpsilonGreedy
 //
 // See also https://en.wikipedia.org/wiki/Epsilon-greedy_strategy
-func ClientPool(hosts []string, decayDuration time.Duration, valueCalculator hostpool.EpsilonValueCalculator) Decorator {
-	pool := hostpool.NewEpsilonGreedy(hosts, decayDuration, valueCalculator)
+func ClientPool(urls []string, decayDuration time.Duration, valueCalculator hostpool.EpsilonValueCalculator) Decorator {
+	for i := range urls {
+		// check for each host if we can actually parse the URL so we can
+		// fail immediately when creating this decorator instead of
+		// waiting until it is used later.
+		u, err := url.Parse(urls[i])
+		if err != nil {
+			panic(err)
+		}
+
+		if !u.IsAbs() {
+			panic(fmt.Errorf("given URL %q must be absolute but it is not", urls[i]))
+		}
+	}
+
+	pool := hostpool.NewEpsilonGreedy(urls, decayDuration, valueCalculator)
 	clients := make(map[string]Client)
 	mu := &sync.Mutex{}
 

@@ -46,7 +46,7 @@ func TestClientPool(t *testing.T) {
 	}
 }
 
-func TestClientPool_WhenSomeHostsFail(t *testing.T) {
+func TestClientPool_WhenSomeServersFail(t *testing.T) {
 	handlers := map[string]http.Handler{
 		"ok": http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(10 * time.Millisecond)
@@ -76,7 +76,7 @@ func TestClientPool_WhenSomeHostsFail(t *testing.T) {
 	}
 }
 
-func TestClientPool_WhenAllHostsFail(t *testing.T) {
+func TestClientPool_WhenAllServersFail(t *testing.T) {
 	handlers := map[string]http.Handler{
 		"s1": http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -106,19 +106,19 @@ func runClientPoolTest(t *testing.T, n int, handlers map[string]http.Handler) (s
 	valueCalculator := new(hostpool.LinearEpsilonValueCalculator)
 
 	stats = make(map[string]int)
-	var hosts []string
+	var urls []string
 	for name := range handlers {
 		name := name // redefine in this scope so it doesn't get overwritten in the next loop iteration
 		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			handlers[name].ServeHTTP(w, r)
 			stats[name] = stats[name] + 1
 		}))
-		hosts = append(hosts, s.URL)
+		urls = append(urls, s.URL)
 	}
 
 	c := cmhttp.Decorate(http.DefaultClient,
 		cmhttp.JSON(),
-		cmhttp.ClientPool(hosts, decayDuration, valueCalculator),
+		cmhttp.ClientPool(urls, decayDuration, valueCalculator),
 	)
 
 	for i := 0; i < n; i++ {
@@ -131,4 +131,48 @@ func runClientPoolTest(t *testing.T, n int, handlers map[string]http.Handler) (s
 	}
 
 	return stats
+}
+
+func TestClientPool_PanicIfInvalidURLsAreGiven(t *testing.T) {
+	d := 1 * time.Second // doesn't actually matter in this test at all
+	vc := new(hostpool.LinearEpsilonValueCalculator)
+
+	cases := []struct {
+		url         string
+		shouldPanic bool
+	}{
+		{"", true},
+		{"foobar", true},
+		{"foo.bar", true},
+		{"foo.bar:8080", false},
+		{"http://foobar", false},
+		{"https://foobar.com", false},
+		{"http://foobar.com:8080", false},
+	}
+
+	for _, c := range cases {
+		paniced := checkPanic(t, func() {
+			cmhttp.ClientPool([]string{c.url}, d, vc)
+		})
+
+		if paniced != c.shouldPanic {
+			if c.shouldPanic {
+				t.Errorf("URL %q : should have paniced", c.url)
+			} else {
+				t.Errorf("URL %q : should not have paniced", c.url)
+			}
+		}
+	}
+}
+
+func checkPanic(t *testing.T, fun func()) (panics bool) {
+	defer func() {
+		r := recover()
+		if r != nil {
+			panics = true
+		}
+	}()
+
+	fun()
+	return
 }
