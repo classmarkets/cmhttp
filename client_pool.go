@@ -18,20 +18,20 @@ import (
 func ClientPool(hosts []string, decayDuration time.Duration, valueCalculator hostpool.EpsilonValueCalculator) Decorator {
 	pool := hostpool.NewEpsilonGreedy(hosts, decayDuration, valueCalculator)
 	clients := make(map[string]Client)
-	mux := &sync.Mutex{}
+	mu := &sync.Mutex{}
 
 	return func(c Client) Client {
 		return ClientFunc(func(req *http.Request) (*http.Response, error) {
 			r := pool.Get()
 			h := r.Host()
 
-			mux.Lock()
+			mu.Lock()
 			pooledClient, ok := clients[h]
 			if !ok {
 				pooledClient = Decorate(c, Scoped(h))
 				clients[h] = pooledClient
 			}
-			mux.Unlock()
+			mu.Unlock()
 
 			resp, err := pooledClient.Do(req)
 			r.Mark(err)
