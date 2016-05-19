@@ -23,22 +23,22 @@ import (
 // https://godoc.org/github.com/bitly/go-hostpool#NewEpsilonGreedy
 //
 // See also https://en.wikipedia.org/wiki/Epsilon-greedy_strategy
-func StaticClientPool(urls []string, decayDuration time.Duration, valueCalculator hostpool.EpsilonValueCalculator) Decorator {
-	for i := range urls {
+func StaticClientPool(baseURLs []string, decayDuration time.Duration, valueCalculator hostpool.EpsilonValueCalculator) Decorator {
+	for i := range baseURLs {
 		// check for each host if we can actually parse the URL so we can
 		// fail immediately when creating this decorator instead of
 		// waiting until it is used later.
-		u, err := url.Parse(urls[i])
+		u, err := url.Parse(baseURLs[i])
 		if err != nil {
 			panic(err)
 		}
 
 		if !u.IsAbs() {
-			panic(fmt.Errorf("given URL %q must be absolute but it is not", urls[i]))
+			panic(fmt.Errorf("given URL %q must be absolute but it is not", baseURLs[i]))
 		}
 	}
 
-	pool := hostpool.NewEpsilonGreedy(urls, decayDuration, valueCalculator)
+	pool := hostpool.NewEpsilonGreedy(baseURLs, decayDuration, valueCalculator)
 	clients := make(map[string]Client)
 	mu := &sync.Mutex{}
 
