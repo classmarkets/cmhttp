@@ -38,9 +38,29 @@ func StaticClientPool(baseURLs []string, decayDuration time.Duration, valueCalcu
 		}
 	}
 
+	c := make(chan []string, 1)
+	c <- baseURLs
+	close(c)
+
+	return DynamicClientPool(c, decayDuration, valueCalculator)
+}
+
+func DynamicClientPool(baseURLsC chan []string, decayDuration time.Duration, valueCalculator hostpool.EpsilonValueCalculator) Decorator {
+	baseURLs := <-baseURLsC
+
 	pool := hostpool.NewEpsilonGreedy(baseURLs, decayDuration, valueCalculator)
 	clients := make(map[string]Client)
 	mu := &sync.Mutex{}
+
+	go func() {
+		for urls := range baseURLsC {
+			// TODO: validate urls. Not sure what to do with invalid urls. Ignore?
+			// TODO: diff urls. Do nothing if no change.
+			// TODO: don't clear all clients. Only remove obsolete clients.
+			pool = hostpool.NewEpsilonGreedy(urls, decayDuration, valueCalculator)
+			clients = make(map[string]Client)
+		}
+	}()
 
 	return func(c Client) Client {
 		return ClientFunc(func(req *http.Request) (*http.Response, error) {
