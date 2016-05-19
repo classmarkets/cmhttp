@@ -15,7 +15,7 @@ func init() {
 	rand.Seed(42)
 }
 
-func TestClientPool(t *testing.T) {
+func TestStaticClientPool(t *testing.T) {
 	handlers := map[string]http.Handler{
 		"fast": http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(10 * time.Millisecond)
@@ -28,7 +28,7 @@ func TestClientPool(t *testing.T) {
 		}),
 	}
 
-	stats := runClientPoolTest(t, 100, handlers)
+	stats := runStaticClientPoolTest(t, 100, handlers)
 
 	for name := range handlers {
 		t.Logf("%s handler received %d requests", name, stats[name])
@@ -46,7 +46,7 @@ func TestClientPool(t *testing.T) {
 	}
 }
 
-func TestClientPool_WhenSomeServersFail(t *testing.T) {
+func TestStaticClientPool_WhenSomeServersFail(t *testing.T) {
 	handlers := map[string]http.Handler{
 		"ok": http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(10 * time.Millisecond)
@@ -59,7 +59,7 @@ func TestClientPool_WhenSomeServersFail(t *testing.T) {
 		}),
 	}
 
-	stats := runClientPoolTest(t, 100, handlers)
+	stats := runStaticClientPoolTest(t, 100, handlers)
 	for name := range handlers {
 		t.Logf("%s handler received %d requests", name, stats[name])
 		if stats[name] == 0 {
@@ -76,7 +76,7 @@ func TestClientPool_WhenSomeServersFail(t *testing.T) {
 	}
 }
 
-func TestClientPool_WhenAllServersFail(t *testing.T) {
+func TestStaticClientPool_WhenAllServersFail(t *testing.T) {
 	handlers := map[string]http.Handler{
 		"s1": http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -90,7 +90,7 @@ func TestClientPool_WhenAllServersFail(t *testing.T) {
 	}
 
 	n := 100
-	stats := runClientPoolTest(t, n, handlers)
+	stats := runStaticClientPoolTest(t, n, handlers)
 	var total int
 	for _, s := range stats {
 		total += s
@@ -101,7 +101,7 @@ func TestClientPool_WhenAllServersFail(t *testing.T) {
 	}
 }
 
-func runClientPoolTest(t *testing.T, n int, handlers map[string]http.Handler) (stats map[string]int) {
+func runStaticClientPoolTest(t *testing.T, n int, handlers map[string]http.Handler) (stats map[string]int) {
 	decayDuration := 1 * time.Second // very short interval just for the test
 	valueCalculator := new(hostpool.LinearEpsilonValueCalculator)
 
@@ -118,7 +118,7 @@ func runClientPoolTest(t *testing.T, n int, handlers map[string]http.Handler) (s
 
 	c := cmhttp.Decorate(http.DefaultClient,
 		cmhttp.JSON(),
-		cmhttp.ClientPool(urls, decayDuration, valueCalculator),
+		cmhttp.StaticClientPool(urls, decayDuration, valueCalculator),
 	)
 
 	for i := 0; i < n; i++ {
@@ -133,7 +133,7 @@ func runClientPoolTest(t *testing.T, n int, handlers map[string]http.Handler) (s
 	return stats
 }
 
-func TestClientPool_PanicIfInvalidURLsAreGiven(t *testing.T) {
+func TestStaticClientPool_PanicIfInvalidURLsAreGiven(t *testing.T) {
 	d := 1 * time.Second // doesn't actually matter in this test at all
 	vc := new(hostpool.LinearEpsilonValueCalculator)
 
@@ -152,7 +152,7 @@ func TestClientPool_PanicIfInvalidURLsAreGiven(t *testing.T) {
 
 	for _, c := range cases {
 		paniced := checkPanic(t, func() {
-			cmhttp.ClientPool([]string{c.url}, d, vc)
+			cmhttp.StaticClientPool([]string{c.url}, d, vc)
 		})
 
 		if paniced != c.shouldPanic {

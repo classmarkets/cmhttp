@@ -10,20 +10,20 @@ import (
 	"github.com/bitly/go-hostpool"
 )
 
-// ClientPool creates a pool of HTTP clients that use an ε-greedy strategy to distribute
+// StaticClientPool creates a pool of HTTP clients that use an ε-greedy strategy to distribute
 // HTTP requests among multiple hosts. The pool transparently distributes the requests
 // among the hosts taking the individual request durations and failures into account.
 //
 // The first parameter must be a list of absolute URLs that correspond to the hosts
 // that should receive the client requests. If any of the given URLs is not valid or
-// relative ClientPool will panic immediately instead of when the returned decorator
+// relative StaticClientPool will panic immediately instead of when the returned decorator
 // is actually used.
 //
 // A more detailed discussion of the underlying algorithm can be found at
 // https://godoc.org/github.com/bitly/go-hostpool#NewEpsilonGreedy
 //
 // See also https://en.wikipedia.org/wiki/Epsilon-greedy_strategy
-func ClientPool(urls []string, decayDuration time.Duration, valueCalculator hostpool.EpsilonValueCalculator) Decorator {
+func StaticClientPool(urls []string, decayDuration time.Duration, valueCalculator hostpool.EpsilonValueCalculator) Decorator {
 	for i := range urls {
 		// check for each host if we can actually parse the URL so we can
 		// fail immediately when creating this decorator instead of
