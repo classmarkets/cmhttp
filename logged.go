@@ -29,7 +29,7 @@ func Logged(logf func(string, ...interface{}), trigger func() bool) Decorator {
 						"url", r.URL,
 						"proto", r.Proto,
 						"request_content_length", r.Header.Get("Content-Length"),
-						"took_ms", took/1e6,
+						"took_ms", int64(took/time.Millisecond),
 						"error", err.Error(),
 					)
 				} else {
@@ -41,7 +41,7 @@ func Logged(logf func(string, ...interface{}), trigger func() bool) Decorator {
 						"request_content_length", r.Header.Get("Content-Length"),
 						"response_content_length", res.Header.Get("Content-Length"),
 						"response_status", res.Status,
-						"took_ms", took/1e6,
+						"took_ms", int64(took/time.Millisecond),
 					)
 				}
 			}(time.Now())
