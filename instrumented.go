@@ -55,10 +55,10 @@ func InstrumentedWithOpts(opts prometheus.SummaryOpts) Decorator {
 	opts.Help = "The HTTP response sizes in bytes."
 	resSz := prometheus.NewSummary(opts)
 
-	regReqCnt := prometheus.MustRegisterOrGet(reqCnt).(*prometheus.CounterVec)
-	regReqDur := prometheus.MustRegisterOrGet(reqDur).(prometheus.Summary)
-	regReqSz := prometheus.MustRegisterOrGet(reqSz).(prometheus.Summary)
-	regResSz := prometheus.MustRegisterOrGet(resSz).(prometheus.Summary)
+	prometheus.MustRegister(reqCnt)
+	prometheus.MustRegister(reqDur)
+	prometheus.MustRegister(reqSz)
+	prometheus.MustRegister(resSz)
 
 	return func(c Client) Client {
 		return ClientFunc(func(r *http.Request) (*http.Response, error) {
@@ -76,10 +76,10 @@ func InstrumentedWithOpts(opts prometheus.SummaryOpts) Decorator {
 				respLengthHeader := resp.Header.Get("Content-Length")
 				respLength, _ := strconv.Atoi(respLengthHeader) // we can't do anything in case this is not an integer so we ignore this case
 
-				regReqCnt.WithLabelValues(method, code).Inc()
-				regReqDur.Observe(elapsed)
-				regResSz.Observe(float64(respLength))
-				regReqSz.Observe(float64(requestSize))
+				reqCnt.WithLabelValues(method, code).Inc()
+				reqDur.Observe(elapsed)
+				reqSz.Observe(float64(respLength))
+				resSz.Observe(float64(requestSize))
 			}()
 
 			return resp, err
@@ -248,8 +248,8 @@ func InstrumentedRequestDurations(opts prometheus.HistogramOpts) Decorator {
 	opts.Name = "request_duration_microseconds"
 	opts.Help = "The HTTP request duration in microseconds."
 
-	h := prometheus.NewHistogramVec(opts, []string{"method", "code"})
-	durations := prometheus.MustRegisterOrGet(h).(*prometheus.HistogramVec)
+	durations := prometheus.NewHistogramVec(opts, []string{"method", "code"})
+	prometheus.MustRegister(durations)
 
 	return func(c Client) Client {
 		return ClientFunc(func(r *http.Request) (*http.Response, error) {
