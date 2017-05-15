@@ -9,6 +9,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+var metrics struct {
+	reqCnt *prometheus.CounterVec
+	reqDur prometheus.Summary
+	reqSz  prometheus.Summary
+	resSz  prometheus.Summary
+}
+
 // Instrumented registers and collects four prometheus metrics on the decorated HTTP client.
 // The following four metric collectors are registered (if not already done):
 //     - http_requests_total (CounterVec)
@@ -32,33 +39,36 @@ func Instrumented(name string) Decorator {
 // InstrumentedWithOpts is like Instrumented but gives you direct control over the used
 // prometheus.SummaryOpts.
 func InstrumentedWithOpts(opts prometheus.SummaryOpts) Decorator {
-	reqCnt := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace:   opts.Namespace,
-			Subsystem:   opts.Subsystem,
-			Name:        "requests_total",
-			Help:        "Total number of HTTP requests made.",
-			ConstLabels: opts.ConstLabels,
-		},
-		[]string{"method", "code"},
-	)
+	if metrics.reqCnt == nil {
+		// make sure we register metrics only once
+		metrics.reqCnt = prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace:   opts.Namespace,
+				Subsystem:   opts.Subsystem,
+				Name:        "requests_total",
+				Help:        "Total number of HTTP requests made.",
+				ConstLabels: opts.ConstLabels,
+			},
+			[]string{"method", "code"},
+		)
 
-	opts.Name = "request_duration_microseconds"
-	opts.Help = "The HTTP request latencies in microseconds."
-	reqDur := prometheus.NewSummary(opts)
+		opts.Name = "request_duration_microseconds"
+		opts.Help = "The HTTP request latencies in microseconds."
+		metrics.reqDur = prometheus.NewSummary(opts)
 
-	opts.Name = "request_size_bytes"
-	opts.Help = "The HTTP request sizes in bytes."
-	reqSz := prometheus.NewSummary(opts)
+		opts.Name = "request_size_bytes"
+		opts.Help = "The HTTP request sizes in bytes."
+		metrics.reqSz = prometheus.NewSummary(opts)
 
-	opts.Name = "response_size_bytes"
-	opts.Help = "The HTTP response sizes in bytes."
-	resSz := prometheus.NewSummary(opts)
+		opts.Name = "response_size_bytes"
+		opts.Help = "The HTTP response sizes in bytes."
+		metrics.resSz = prometheus.NewSummary(opts)
 
-	regReqCnt := prometheus.MustRegisterOrGet(reqCnt).(*prometheus.CounterVec)
-	regReqDur := prometheus.MustRegisterOrGet(reqDur).(prometheus.Summary)
-	regReqSz := prometheus.MustRegisterOrGet(reqSz).(prometheus.Summary)
-	regResSz := prometheus.MustRegisterOrGet(resSz).(prometheus.Summary)
+		prometheus.MustRegister(metrics.reqCnt)
+		prometheus.MustRegister(metrics.reqDur)
+		prometheus.MustRegister(metrics.reqSz)
+		prometheus.MustRegister(metrics.resSz)
+	}
 
 	return func(c Client) Client {
 		return ClientFunc(func(r *http.Request) (*http.Response, error) {
@@ -76,10 +86,10 @@ func InstrumentedWithOpts(opts prometheus.SummaryOpts) Decorator {
 				respLengthHeader := resp.Header.Get("Content-Length")
 				respLength, _ := strconv.Atoi(respLengthHeader) // we can't do anything in case this is not an integer so we ignore this case
 
-				regReqCnt.WithLabelValues(method, code).Inc()
-				regReqDur.Observe(elapsed)
-				regResSz.Observe(float64(respLength))
-				regReqSz.Observe(float64(requestSize))
+				metrics.reqCnt.WithLabelValues(method, code).Inc()
+				metrics.reqDur.Observe(elapsed)
+				metrics.reqSz.Observe(float64(respLength))
+				metrics.resSz.Observe(float64(requestSize))
 			}()
 
 			return resp, err
@@ -248,8 +258,8 @@ func InstrumentedRequestDurations(opts prometheus.HistogramOpts) Decorator {
 	opts.Name = "request_duration_microseconds"
 	opts.Help = "The HTTP request duration in microseconds."
 
-	h := prometheus.NewHistogramVec(opts, []string{"method", "code"})
-	durations := prometheus.MustRegisterOrGet(h).(*prometheus.HistogramVec)
+	durations := prometheus.NewHistogramVec(opts, []string{"method", "code"})
+	prometheus.MustRegister(durations)
 
 	return func(c Client) Client {
 		return ClientFunc(func(r *http.Request) (*http.Response, error) {
