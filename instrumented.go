@@ -19,7 +19,7 @@ var metrics struct {
 // Instrumented registers and collects four prometheus metrics on the decorated HTTP client.
 // The following four metric collectors are registered (if not already done):
 //     - http_requests_total (CounterVec)
-//     - http_request_duration_microseconds (Summary),
+//     - http_request_duration_seconds (Summary),
 //     - http_request_size_bytes (Summary)
 //     - http_response_size_bytes (Summary)
 // Each has a constant label named "name" with the provided name as value.
@@ -52,8 +52,8 @@ func InstrumentedWithOpts(opts prometheus.SummaryOpts) Decorator {
 			[]string{"method", "code"},
 		)
 
-		opts.Name = "request_duration_microseconds"
-		opts.Help = "The HTTP request latencies in microseconds."
+		opts.Name = "request_duration_seconds"
+		opts.Help = "The HTTP request latencies in seconds."
 		metrics.reqDur = prometheus.NewSummary(opts)
 
 		opts.Name = "request_size_bytes"
@@ -78,7 +78,7 @@ func InstrumentedWithOpts(opts prometheus.SummaryOpts) Decorator {
 				return resp, err
 			}
 
-			elapsed := float64(time.Since(begin)) / float64(time.Microsecond)
+			elapsed := float64(time.Since(begin)) / float64(time.Second)
 			go func() {
 				requestSize := computeApproximateRequestSize(r)
 				method := sanitizeMethod(r.Method)
@@ -255,8 +255,8 @@ func sanitizeCode(s int) string {
 // durations as histogram vector partitioned by HTTP method (label name "method")
 // and response code (label name "code").
 func InstrumentedRequestDurations(opts prometheus.HistogramOpts) Decorator {
-	opts.Name = "request_duration_microseconds"
-	opts.Help = "The HTTP request duration in microseconds."
+	opts.Name = "request_duration_seconds"
+	opts.Help = "The HTTP request duration in seconds."
 
 	durations := prometheus.NewHistogramVec(opts, []string{"method", "code"})
 	prometheus.MustRegister(durations)
@@ -269,7 +269,7 @@ func InstrumentedRequestDurations(opts prometheus.HistogramOpts) Decorator {
 				return resp, err
 			}
 
-			elapsed := float64(time.Since(begin)) / float64(time.Microsecond)
+			elapsed := float64(time.Since(begin)) / float64(time.Second)
 
 			method := sanitizeMethod(r.Method)
 			code := sanitizeCode(resp.StatusCode)
