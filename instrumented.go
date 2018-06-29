@@ -9,6 +9,37 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// InstrumentedRequestDurations instruments the client by tracking the request
+// durations as histogram vector partitioned by HTTP method (label name
+// "method") and response code (label name "code").
+//
+// InstrumentedRequestDurations will set the Name and Help fields of opts.
+func InstrumentedRequestDurations(opts prometheus.HistogramOpts) Decorator {
+	opts.Name = "request_duration_seconds"
+	opts.Help = "The HTTP request duration in seconds."
+
+	durations := prometheus.NewHistogramVec(opts, []string{"method", "code"})
+	prometheus.MustRegister(durations)
+
+	return func(c Client) Client {
+		return ClientFunc(func(r *http.Request) (*http.Response, error) {
+			begin := time.Now()
+			resp, err := c.Do(r)
+			if err != nil {
+				return resp, err
+			}
+
+			elapsed := float64(time.Since(begin)) / float64(time.Second)
+
+			method := sanitizeMethod(r.Method)
+			code := sanitizeCode(resp.StatusCode)
+			durations.WithLabelValues(method, code).Observe(elapsed)
+
+			return resp, err
+		})
+	}
+}
+
 var metrics struct {
 	reqCnt *prometheus.CounterVec
 	reqDur prometheus.Summary
@@ -16,17 +47,20 @@ var metrics struct {
 	resSz  prometheus.Summary
 }
 
-// Instrumented registers and collects four prometheus metrics on the decorated HTTP client.
-// The following four metric collectors are registered (if not already done):
-//     - http_requests_total (CounterVec)
-//     - http_request_duration_seconds (Summary),
-//     - http_request_size_bytes (Summary)
-//     - http_response_size_bytes (Summary)
-// Each has a constant label named "name" with the provided name as value.
-// http_requests_total is a metric vector partitioned by HTTP method
-// (label name "method") and HTTP status code (label name "code").
+// Instrumented registers and collects the following four metrics with the
+// default Registerer:
 //
-// This code closely resembles the HTTP server side prometheus.InstrumentHandler function.
+//     - http_client_requests_total (CounterVec)
+//     - http_client_request_duration_seconds (Summary),
+//     - http_client_request_size_bytes (Summary)
+//     - http_client_response_size_bytes (Summary)
+//
+// Each has a constant label named "name" with the provided name as value.
+// http_client_requests_total is a metric vector partitioned by HTTP method
+// ("method" label) and HTTP status code ("code" label).
+//
+// This code closely resembles the HTTP server side
+// prometheus.InstrumentHandler function.
 func Instrumented(name string) Decorator {
 	return InstrumentedWithOpts(
 		prometheus.SummaryOpts{
@@ -36,8 +70,9 @@ func Instrumented(name string) Decorator {
 	)
 }
 
-// InstrumentedWithOpts is like Instrumented but gives you direct control over the used
-// prometheus.SummaryOpts.
+// InstrumentedWithOpts is like Instrumented but allows changing Namespace (""
+// by default) and/or Subsystem ("http_client" by default) and adding
+// ConstLabels. All other fields of opts are ignored.
 func InstrumentedWithOpts(opts prometheus.SummaryOpts) Decorator {
 	if metrics.reqCnt == nil {
 		// make sure we register metrics only once
@@ -97,7 +132,8 @@ func InstrumentedWithOpts(opts prometheus.SummaryOpts) Decorator {
 	}
 }
 
-// computeApproximateRequestSize has been mostly copied from the prometheus.InstrumentHandler logic.
+// computeApproximateRequestSize has been mostly copied from the
+// prometheus.InstrumentHandler logic.
 func computeApproximateRequestSize(r *http.Request) int {
 	var s int
 	if r.URL != nil {
@@ -123,8 +159,8 @@ func computeApproximateRequestSize(r *http.Request) int {
 	return s
 }
 
-// sanitizeMethod normalizes HTTP methods to lowercase.
-// This was copied from prometheus.InstrumentHandler logic.
+// sanitizeMethod normalizes HTTP methods to lowercase. This was copied from
+// prometheus.InstrumentHandler logic.
 func sanitizeMethod(m string) string {
 	switch m {
 	case "GET", "get":
@@ -248,34 +284,5 @@ func sanitizeCode(s int) string {
 
 	default:
 		return strconv.Itoa(s)
-	}
-}
-
-// InstrumentedRequestDurations instruments the client by tracking the request
-// durations as histogram vector partitioned by HTTP method (label name "method")
-// and response code (label name "code").
-func InstrumentedRequestDurations(opts prometheus.HistogramOpts) Decorator {
-	opts.Name = "request_duration_seconds"
-	opts.Help = "The HTTP request duration in seconds."
-
-	durations := prometheus.NewHistogramVec(opts, []string{"method", "code"})
-	prometheus.MustRegister(durations)
-
-	return func(c Client) Client {
-		return ClientFunc(func(r *http.Request) (*http.Response, error) {
-			begin := time.Now()
-			resp, err := c.Do(r)
-			if err != nil {
-				return resp, err
-			}
-
-			elapsed := float64(time.Since(begin)) / float64(time.Second)
-
-			method := sanitizeMethod(r.Method)
-			code := sanitizeCode(resp.StatusCode)
-			durations.WithLabelValues(method, code).Observe(elapsed)
-
-			return resp, err
-		})
 	}
 }
