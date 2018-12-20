@@ -14,7 +14,7 @@ import (
 
 func TestDrainClose_NilBody(t *testing.T) {
 	if err := DrainClose(nil); err != nil {
-		t.Fatal("DrainClose(nil) returned non-nil error:", err)
+		t.Error("DrainClose(nil) returned non-nil error:", err)
 	}
 }
 
@@ -23,7 +23,7 @@ func TestDrainClose_AtEOF(t *testing.T) {
 	body := ioutil.NopCloser(buf)
 
 	if err := DrainClose(body); err != nil {
-		t.Fatal("DrainClose() returned non-nil error for already drained body:", err)
+		t.Error("DrainClose() returned non-nil error for already drained body:", err)
 	}
 }
 
@@ -58,11 +58,18 @@ func TestDrainClose_AlwaysCloses(t *testing.T) {
 }
 
 func TestDrainClose_StillRequired(t *testing.T) {
-	nDialsControl := testDrainClose(t, false, 10)
-	nDials := testDrainClose(t, true, 10)
+	nReq := 10
 
-	if nDialsControl <= nDials {
-		t.Error("DrainClose(resp.Body) doesn't result in fewer dials than resp.Body.Close(). It may not be necessary anymore")
+	nDialsControl := testDrainClose(t, false, nReq)
+	t.Logf("using resp.Body.Close() caused %d net.Dial calls for %d requests", nDialsControl, nReq)
+
+	nDials := testDrainClose(t, true, nReq)
+	t.Logf("using DrainClose(resp.Body) caused %d net.Dial calls for %d requests", nDials, nReq)
+
+	if nDials >= nDialsControl {
+		t.Errorf("DrainClose(resp.Body) doesn't result in fewer dials than resp.Body.Close() (%d vs %d for %d requests). It may not be necessary anymore",
+			nDials, nDialsControl, nReq,
+		)
 	}
 }
 
@@ -82,24 +89,26 @@ func testDrainClose(t *testing.T, drain bool, nReq int) int32 {
 	}
 
 	for i := 0; i < nReq; i++ {
-		req, err := http.NewRequest("GET", s.URL, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		func() {
+			req, err := http.NewRequest("GET", s.URL, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		res, err := c.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
+			res, err := c.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		if drain {
-			DrainClose(res.Body)
-		} else {
-			res.Body.Close()
-		}
+			if drain {
+				defer DrainClose(res.Body)
+			} else {
+				defer res.Body.Close()
+			}
+		}()
 
-		// http.Transport does manages connections in goroutines, so we give
-		// them a chance to recycle the connection we just used.
+		// http.Transport manages connections in goroutines, so we give them a
+		// chance to recycle the connection we just used.
 		time.Sleep(10 * time.Millisecond)
 	}
 
